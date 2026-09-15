@@ -1,0 +1,868 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>出席手帳</title>
+<style>
+  :root{
+    --paper: #FBFAF5;
+    --paper-dim: #F1EFE6;
+    --ink: #22314F;
+    --ink-soft: #5B6785;
+    --line: #DCD8C8;
+    --stamp-red: #B23A2E;
+    --stamp-red-soft: #F4E0DC;
+    --late-gold: #B4842A;
+    --late-gold-soft: #F3E7D2;
+    --early-sage: #4F7A5C;
+    --early-sage-soft: #DEEBE1;
+    --absent-grey: #7C879C;
+    --absent-grey-soft: #E7E9EE;
+    --sat-blue: #34588C;
+    --sun-red: #B23A2E;
+    --radius: 14px;
+    --shadow: 0 1px 0 rgba(34,49,79,0.06), 0 6px 16px rgba(34,49,79,0.06);
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--paper);
+    color:var(--ink);
+    font-family:"Hiragino Sans","Hiragino Kaku Gothic ProN","Yu Gothic","Noto Sans JP",system-ui,sans-serif;
+    -webkit-font-smoothing:antialiased;
+    min-height:100vh;
+  }
+  #app{
+    max-width:480px;
+    margin:0 auto;
+    min-height:100vh;
+    display:flex;
+    flex-direction:column;
+    padding-bottom:76px;
+    position:relative;
+  }
+  header.top{
+    background:var(--ink);
+    color:var(--paper);
+    padding:22px 20px 18px;
+    border-radius:0 0 20px 20px;
+  }
+  header.top h1{
+    margin:0;
+    font-size:20px;
+    font-weight:700;
+    letter-spacing:.04em;
+  }
+  header.top p{
+    margin:4px 0 0;
+    font-size:12.5px;
+    color:#C7CEE0;
+  }
+  main{flex:1;padding:16px 16px 8px;}
+  .card{
+    background:var(--paper);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    box-shadow:var(--shadow);
+    padding:16px;
+    margin-bottom:14px;
+  }
+  .month-nav{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    margin-bottom:10px;
+  }
+  .month-nav .month-label{
+    font-size:17px;
+    font-weight:700;
+  }
+  .month-nav button{
+    background:var(--paper-dim);
+    border:none;
+    width:34px;height:34px;
+    border-radius:50%;
+    font-size:16px;
+    color:var(--ink);
+    cursor:pointer;
+  }
+  .weekday-row{
+    display:grid;
+    grid-template-columns:repeat(7,1fr);
+    text-align:center;
+    font-size:11.5px;
+    color:var(--ink-soft);
+    margin-bottom:4px;
+  }
+  .weekday-row span:first-child{color:var(--sat-blue-unused);}
+  .cal-grid{
+    display:grid;
+    grid-template-columns:repeat(7,1fr);
+    gap:4px;
+  }
+  .cal-cell{
+    position:relative;
+    aspect-ratio:1/1;
+    border-radius:10px;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    font-size:13px;
+    background:transparent;
+    border:1px solid transparent;
+    cursor:pointer;
+    -webkit-tap-highlight-color:transparent;
+  }
+  .cal-cell.outside{visibility:hidden;pointer-events:none;}
+  .cal-cell .num{font-weight:600;line-height:1;}
+  .cal-cell.sat .num{color:var(--sat-blue);}
+  .cal-cell.sun .num,.cal-cell.holiday .num{color:var(--sun-red);}
+  .cal-cell.today{border-color:var(--ink); border-width:1.5px;}
+  .cal-cell.out-of-term{opacity:.32;}
+  .cal-cell .tag{
+    font-size:8px;
+    color:var(--ink-soft);
+    margin-top:1px;
+    max-width:36px;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    white-space:nowrap;
+  }
+  .cal-cell .dot{
+    width:6px;height:6px;border-radius:50%;
+    margin-top:2px;
+  }
+  .cal-cell.st-present{background:var(--stamp-red-soft);}
+  .cal-cell.st-present .num{color:var(--stamp-red);}
+  .cal-cell.st-absent{background:var(--absent-grey-soft);}
+  .cal-cell.st-late{background:var(--late-gold-soft);}
+  .cal-cell.st-early{background:var(--early-sage-soft);}
+  .st-present .dot{background:var(--stamp-red);}
+  .st-absent .dot{background:var(--absent-grey);}
+  .st-late .dot{background:var(--late-gold);}
+  .st-early .dot{background:var(--early-sage);}
+
+  .legend{
+    display:flex;
+    flex-wrap:wrap;
+    gap:10px;
+    margin-top:12px;
+    font-size:11px;
+    color:var(--ink-soft);
+  }
+  .legend span{display:flex;align-items:center;gap:4px;}
+  .legend i{width:8px;height:8px;border-radius:50%;display:inline-block;}
+
+  .summary-title{
+    font-size:12.5px;
+    color:var(--ink-soft);
+    margin:0 0 12px;
+  }
+  .stamp-row{
+    display:flex;
+    align-items:stretch;
+    gap:10px;
+  }
+  .rate-seal{
+    flex:0 0 108px;
+    height:108px;
+    border-radius:50%;
+    border:2.5px solid var(--stamp-red);
+    color:var(--stamp-red);
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    transform:rotate(-4deg);
+  }
+  .rate-seal .num{font-size:28px;font-weight:800;line-height:1;}
+  .rate-seal .unit{font-size:11px;font-weight:700;margin-top:2px;}
+  .stat-list{
+    flex:1;
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:8px;
+  }
+  .stat-box{
+    background:var(--paper-dim);
+    border-radius:10px;
+    padding:8px 10px;
+  }
+  .stat-box .n{font-size:18px;font-weight:800;}
+  .stat-box .l{font-size:10.5px;color:var(--ink-soft);}
+  .stat-box.present .n{color:var(--stamp-red);}
+  .stat-box.absent .n{color:var(--absent-grey);}
+  .stat-box.late .n{color:var(--late-gold);}
+  .stat-box.early .n{color:var(--early-sage);}
+
+  .sched-item{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:9px 2px;
+    border-bottom:1px solid var(--line);
+    font-size:13.5px;
+  }
+  .sched-item:last-child{border-bottom:none;}
+  .sched-item .d{color:var(--ink-soft); font-size:11.5px; min-width:64px;}
+  .sched-item .t{flex:1; margin:0 8px;}
+  .sched-item button{
+    background:none;border:none;color:var(--ink-soft);
+    font-size:16px;cursor:pointer;padding:2px 6px;
+  }
+  .empty-note{
+    color:var(--ink-soft);
+    font-size:13px;
+    padding:6px 2px;
+  }
+  .add-row{
+    display:flex;
+    gap:8px;
+    margin-top:10px;
+  }
+  input[type=text],input[type=date]{
+    font-family:inherit;
+    font-size:13.5px;
+    padding:9px 10px;
+    border-radius:9px;
+    border:1px solid var(--line);
+    background:var(--paper);
+    color:var(--ink);
+  }
+  .btn{
+    font-family:inherit;
+    font-size:13.5px;
+    font-weight:700;
+    padding:9px 14px;
+    border-radius:9px;
+    border:none;
+    cursor:pointer;
+  }
+  .btn-primary{background:var(--ink); color:var(--paper);}
+  .btn-ghost{background:var(--paper-dim); color:var(--ink);}
+  .btn-danger{background:var(--stamp-red-soft); color:var(--stamp-red);}
+  .btn-block{width:100%;}
+
+  section.settings h2{
+    font-size:14px;
+    margin:0 0 4px;
+  }
+  section.settings .hint{
+    font-size:11.5px;
+    color:var(--ink-soft);
+    margin:0 0 12px;
+  }
+  .list-row{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    padding:8px 2px;
+    border-bottom:1px solid var(--line);
+    font-size:13px;
+  }
+  .list-row:last-child{border-bottom:none;}
+  .list-row .info{flex:1;}
+  .list-row .info b{display:block;font-size:13.5px;}
+  .list-row .info span{font-size:11.5px;color:var(--ink-soft);}
+  .list-row label{
+    display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--ink-soft);
+  }
+  .form-grid{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:8px;
+    margin-bottom:8px;
+  }
+  .form-grid.wide{grid-template-columns:1fr;}
+
+  nav.tabbar{
+    position:fixed;
+    bottom:0;left:0;right:0;
+    max-width:480px;
+    margin:0 auto;
+    background:var(--paper);
+    border-top:1px solid var(--line);
+    display:flex;
+  }
+  nav.tabbar button{
+    flex:1;
+    background:none;
+    border:none;
+    padding:12px 0 14px;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:3px;
+    font-size:11px;
+    color:var(--ink-soft);
+    cursor:pointer;
+    font-family:inherit;
+  }
+  nav.tabbar button.active{color:var(--ink); font-weight:700;}
+  nav.tabbar svg{width:20px;height:20px;}
+
+  .sheet-overlay{
+    position:fixed;inset:0;
+    background:rgba(34,49,79,0.35);
+    display:flex;
+    align-items:flex-end;
+    justify-content:center;
+    z-index:50;
+  }
+  .sheet-overlay.hidden{display:none;}
+  .sheet{
+    width:100%;
+    max-width:480px;
+    background:var(--paper);
+    border-radius:20px 20px 0 0;
+    padding:18px 18px 26px;
+  }
+  .sheet .sheet-title{
+    font-size:14px;
+    color:var(--ink-soft);
+    margin:0 0 12px;
+    text-align:center;
+  }
+  .sheet-options{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:10px;
+    margin-bottom:10px;
+  }
+  .sheet-options button{
+    padding:14px 0;
+    border-radius:12px;
+    border:1.5px solid var(--line);
+    background:var(--paper);
+    font-family:inherit;
+    font-size:14px;
+    font-weight:700;
+    cursor:pointer;
+  }
+  .sheet-options button.opt-present{color:var(--stamp-red); border-color:var(--stamp-red);}
+  .sheet-options button.opt-absent{color:var(--absent-grey); border-color:var(--absent-grey);}
+  .sheet-options button.opt-late{color:var(--late-gold); border-color:var(--late-gold);}
+  .sheet-options button.opt-early{color:var(--early-sage); border-color:var(--early-sage);}
+  .sheet-bottom{display:flex; gap:8px;}
+  .sheet-bottom button{flex:1;}
+
+  .toast{
+    position:fixed;
+    bottom:86px;left:50%;
+    transform:translateX(-50%);
+    background:var(--ink);
+    color:var(--paper);
+    padding:9px 16px;
+    border-radius:20px;
+    font-size:12.5px;
+    opacity:0;
+    transition:opacity .25s;
+    pointer-events:none;
+    z-index:60;
+  }
+  .toast.show{opacity:1;}
+</style>
+</head>
+<body>
+<div id="app">
+  <header class="top">
+    <h1>出席手帳</h1>
+    <p id="headerSub">今日の出席を記録しよう。</p>
+  </header>
+
+  <main id="mainView"></main>
+
+  <div id="sheetOverlay" class="sheet-overlay hidden"></div>
+  <div id="toast" class="toast"></div>
+
+  <nav class="tabbar">
+    <button id="tabMain" class="active">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>
+      メイン
+    </button>
+    <button id="tabSettings">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 00.34 1.87l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.7 1.7 0 00-1.87-.34 1.7 1.7 0 00-1 1.55V21a2 2 0 11-4 0v-.09a1.7 1.7 0 00-1-1.55 1.7 1.7 0 00-1.87.34l-.06.06a2 2 0 11-2.83-2.83l.06-.06A1.7 1.7 0 004.6 15a1.7 1.7 0 00-1.55-1H3a2 2 0 110-4h.09A1.7 1.7 0 004.6 9a1.7 1.7 0 00-.34-1.87l-.06-.06a2 2 0 112.83-2.83l.06.06A1.7 1.7 0 009 4.6a1.7 1.7 0 001-1.55V3a2 2 0 114 0v.09a1.7 1.7 0 001 1.55 1.7 1.7 0 001.87-.34l.06-.06a2 2 0 112.83 2.83l-.06.06A1.7 1.7 0 0019.4 9a1.7 1.7 0 001.55 1H21a2 2 0 110 4h-.09a1.7 1.7 0 00-1.51 1z"/></svg>
+      設定
+    </button>
+  </nav>
+</div>
+
+<script>
+const STORAGE_KEY = 'attendance-tracker-data-v1';
+
+function buildDefaultHolidays(){
+  // Japanese national holidays for 2026-2027, confirmed against a synced
+  // "日本の祝日" calendar (includes 振替休日 / 国民の休日). Editable in Settings.
+  return [
+    {date:'2026-01-01', name:'元日'},
+    {date:'2026-01-12', name:'成人の日'},
+    {date:'2026-02-11', name:'建国記念の日'},
+    {date:'2026-02-23', name:'天皇誕生日'},
+    {date:'2026-03-20', name:'春分の日'},
+    {date:'2026-04-29', name:'昭和の日'},
+    {date:'2026-05-03', name:'憲法記念日'},
+    {date:'2026-05-04', name:'みどりの日'},
+    {date:'2026-05-05', name:'こどもの日'},
+    {date:'2026-05-06', name:'振替休日'},
+    {date:'2026-07-20', name:'海の日'},
+    {date:'2026-08-11', name:'山の日'},
+    {date:'2026-09-21', name:'敬老の日'},
+    {date:'2026-09-22', name:'国民の休日'},
+    {date:'2026-09-23', name:'秋分の日'},
+    {date:'2026-10-12', name:'スポーツの日'},
+    {date:'2026-11-03', name:'文化の日'},
+    {date:'2026-11-23', name:'勤労感謝の日'},
+    {date:'2027-01-01', name:'元日'},
+    {date:'2027-01-11', name:'成人の日'},
+    {date:'2027-02-11', name:'建国記念の日'},
+    {date:'2027-02-23', name:'天皇誕生日'},
+    {date:'2027-03-21', name:'春分の日'},
+    {date:'2027-03-22', name:'振替休日'},
+    {date:'2027-04-29', name:'昭和の日'},
+    {date:'2027-05-03', name:'憲法記念日'},
+    {date:'2027-05-04', name:'みどりの日'},
+    {date:'2027-05-05', name:'こどもの日'},
+    {date:'2027-07-19', name:'海の日'},
+    {date:'2027-08-11', name:'山の日'},
+    {date:'2027-09-20', name:'敬老の日'},
+    {date:'2027-09-23', name:'秋分の日'},
+    {date:'2027-10-11', name:'スポーツの日'},
+    {date:'2027-11-03', name:'文化の日'},
+    {date:'2027-11-23', name:'勤労感謝の日'}
+  ];
+}
+
+function defaultData(){
+  return {
+    terms: [],
+    closures: [],
+    holidays: buildDefaultHolidays(),
+    schedules: [],
+    attendance: {}
+  };
+}
+
+let DATA = defaultData();
+let currentTab = 'main';
+let viewYear, viewMonth; // viewMonth: 0-11
+let pendingCellDate = null;
+
+const $ = sel => document.querySelector(sel);
+const pad2 = n => String(n).padStart(2,'0');
+const iso = (y,m,d) => `${y}-${pad2(m+1)}-${pad2(d)}`;
+const todayISO = () => {
+  const t = new Date();
+  return iso(t.getFullYear(), t.getMonth(), t.getDate());
+};
+
+async function loadData(){
+  try{
+    const res = await window.storage.get(STORAGE_KEY, false);
+    if(res && res.value){
+      const parsed = JSON.parse(res.value);
+      DATA = Object.assign(defaultData(), parsed);
+      if(!DATA.holidays || !DATA.holidays.length) DATA.holidays = buildDefaultHolidays();
+    } else {
+      DATA = defaultData();
+      await persist();
+    }
+  }catch(e){
+    DATA = defaultData();
+    try{ await persist(); }catch(e2){}
+  }
+}
+
+async function persist(){
+  try{
+    await window.storage.set(STORAGE_KEY, JSON.stringify(DATA), false);
+  }catch(e){
+    showToast('保存に失敗しました');
+  }
+}
+
+function showToast(msg){
+  const t = $('#toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(showToast._h);
+  showToast._h = setTimeout(()=>t.classList.remove('show'), 1600);
+}
+
+// ---------- term / holiday / closure helpers ----------
+function findHoliday(dateStr){
+  return DATA.holidays.find(h => h.date === dateStr && h.enabled !== false);
+}
+function findClosure(dateStr){
+  return DATA.closures.find(c => c.date === dateStr);
+}
+function findSchedule(dateStr){
+  return DATA.schedules.find(s => s.date === dateStr);
+}
+function activeTermFor(dateStr){
+  return DATA.terms.find(t => t.start <= dateStr && dateStr <= t.end);
+}
+function isWithinAnyTerm(dateStr){
+  if(!DATA.terms.length) return true; // no terms set -> don't grey anything out
+  return !!activeTermFor(dateStr);
+}
+
+// ---------- rendering ----------
+function render(){
+  if(currentTab === 'main') renderMain();
+  else renderSettings();
+  $('#tabMain').classList.toggle('active', currentTab==='main');
+  $('#tabSettings').classList.toggle('active', currentTab==='settings');
+}
+
+function renderMain(){
+  const el = $('#mainView');
+  const y = viewYear, m = viewMonth;
+  const firstDow = (new Date(y,m,1).getDay()+6)%7; // Monday=0
+  const daysInMonth = new Date(y,m+1,0).getDate();
+  const todayStr = todayISO();
+
+  let cells = '';
+  for(let i=0;i<firstDow;i++) cells += `<div class="cal-cell outside"></div>`;
+  for(let d=1; d<=daysInMonth; d++){
+    const dateStr = iso(y,m,d);
+    const dow = new Date(y,m,d).getDay();
+    const holiday = findHoliday(dateStr);
+    const closure = findClosure(dateStr);
+    const sched = findSchedule(dateStr);
+    const status = DATA.attendance[dateStr];
+    const classes = ['cal-cell'];
+    if(dow===6) classes.push('sat');
+    if(dow===0) classes.push('sun');
+    if(holiday) classes.push('holiday');
+    if(dateStr===todayStr) classes.push('today');
+    if(status) classes.push('st-'+status);
+    if(!isWithinAnyTerm(dateStr)) classes.push('out-of-term');
+    const tagParts = [];
+    if(holiday) tagParts.push(holiday.name);
+    else if(closure) tagParts.push(closure.name || '休校');
+    if(sched) tagParts.push(sched.title);
+    const tag = tagParts.join('・');
+    cells += `<div class="${classes.join(' ')}" data-date="${dateStr}">
+      <span class="num">${d}</span>
+      ${tag ? `<span class="tag">${escapeHtml(tag)}</span>` : (status ? `<span class="dot"></span>` : '')}
+    </div>`;
+  }
+  const totalCells = firstDow + daysInMonth;
+  const trailing = (7 - (totalCells % 7)) % 7;
+  for(let i=0;i<trailing;i++) cells += `<div class="cal-cell outside"></div>`;
+
+  const stats = computeStats();
+
+  el.innerHTML = `
+    <div class="card">
+      <div class="month-nav">
+        <button id="prevMonth">‹</button>
+        <div class="month-label">${y}年 ${m+1}月</div>
+        <button id="nextMonth">›</button>
+      </div>
+      <div class="weekday-row"><span>月</span><span>火</span><span>水</span><span>木</span><span>金</span><span class="sat">土</span><span class="sun">日</span></div>
+      <div class="cal-grid">${cells}</div>
+      <div class="legend">
+        <span><i style="background:var(--stamp-red)"></i>出席</span>
+        <span><i style="background:var(--late-gold)"></i>遅刻</span>
+        <span><i style="background:var(--early-sage)"></i>早退</span>
+        <span><i style="background:var(--absent-grey)"></i>欠席</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <p class="summary-title">${stats.termLabel}</p>
+      <div class="stamp-row">
+        <div class="rate-seal">
+          <div class="num">${stats.rate===null? '—' : stats.rate}</div>
+          <div class="unit">${stats.rate===null? '記録なし' : '% 出席率'}</div>
+        </div>
+        <div class="stat-list">
+          <div class="stat-box present"><div class="n">${stats.present}</div><div class="l">出席日数</div></div>
+          <div class="stat-box absent"><div class="n">${stats.absent}</div><div class="l">欠席日数</div></div>
+          <div class="stat-box late"><div class="n">${stats.late}</div><div class="l">遅刻</div></div>
+          <div class="stat-box early"><div class="n">${stats.early}</div><div class="l">早退</div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <p class="summary-title">予定</p>
+      <div id="schedList">${renderScheduleList()}</div>
+      <div class="add-row">
+        <input type="date" id="schedDate" style="flex:0 0 130px">
+        <input type="text" id="schedTitle" placeholder="内容（例：中間テスト）" style="flex:1">
+      </div>
+      <button class="btn btn-primary btn-block" id="addSched" style="margin-top:8px;">予定を追加</button>
+    </div>
+  `;
+
+  $('#prevMonth').onclick = ()=>{ shiftMonth(-1); };
+  $('#nextMonth').onclick = ()=>{ shiftMonth(1); };
+  el.querySelectorAll('.cal-cell[data-date]').forEach(c=>{
+    c.addEventListener('click', ()=> openStatusSheet(c.dataset.date));
+  });
+  $('#addSched').onclick = onAddSchedule;
+}
+
+function renderScheduleList(){
+  const items = DATA.schedules.slice().sort((a,b)=> a.date.localeCompare(b.date));
+  if(!items.length) return `<p class="empty-note">まだ予定がありません</p>`;
+  return items.map((s,idx)=>{
+    const realIdx = DATA.schedules.indexOf(s);
+    return `<div class="sched-item">
+      <span class="d">${s.date.slice(5).replace('-','/')}</span>
+      <span class="t">${escapeHtml(s.title)}</span>
+      <button data-idx="${realIdx}" class="delSched">×</button>
+    </div>`;
+  }).join('');
+}
+
+function computeStats(){
+  const term = DATA.terms.find(t => t.start <= todayISO() && todayISO() <= t.end) || DATA.terms[0];
+  let start, end, label;
+  if(term){
+    start = term.start; end = term.end; label = term.name || '今の学期';
+  } else {
+    start = `${viewYear}-01-01`; end = `${viewYear}-12-31`;
+    label = '学期未設定（今年でカウント中）';
+  }
+  let present=0, absent=0, late=0, early=0;
+  Object.keys(DATA.attendance).forEach(d=>{
+    if(d < start || d > end) return;
+    const s = DATA.attendance[d];
+    if(s==='present') present++;
+    else if(s==='absent') absent++;
+    else if(s==='late') late++;
+    else if(s==='early') early++;
+  });
+  const denom = present + absent;
+  const rate = denom>0 ? Math.round((present/denom)*1000)/10 : null;
+  return {present, absent, late, early, rate, termLabel: label};
+}
+
+function shiftMonth(delta){
+  viewMonth += delta;
+  if(viewMonth<0){viewMonth=11; viewYear--;}
+  if(viewMonth>11){viewMonth=0; viewYear++;}
+  render();
+}
+
+function openStatusSheet(dateStr){
+  pendingCellDate = dateStr;
+  const overlay = $('#sheetOverlay');
+  const d = new Date(dateStr);
+  const label = `${d.getMonth()+1}月${d.getDate()}日`;
+  overlay.innerHTML = `
+    <div class="sheet">
+      <p class="sheet-title">${label}の記録</p>
+      <div class="sheet-options">
+        <button class="opt-present" data-v="present">出席</button>
+        <button class="opt-late" data-v="late">遅刻</button>
+        <button class="opt-early" data-v="early">早退</button>
+        <button class="opt-absent" data-v="absent">欠席</button>
+      </div>
+      <div class="sheet-bottom">
+        <button class="btn btn-ghost" id="sheetClear">記録を消す</button>
+        <button class="btn btn-ghost" id="sheetCancel">閉じる</button>
+      </div>
+    </div>
+  `;
+  overlay.classList.remove('hidden');
+  overlay.querySelectorAll('[data-v]').forEach(btn=>{
+    btn.onclick = async ()=>{
+      DATA.attendance[pendingCellDate] = btn.dataset.v;
+      await persist();
+      overlay.classList.add('hidden');
+      render();
+    };
+  });
+  $('#sheetClear').onclick = async ()=>{
+    delete DATA.attendance[pendingCellDate];
+    await persist();
+    overlay.classList.add('hidden');
+    render();
+  };
+  $('#sheetCancel').onclick = ()=> overlay.classList.add('hidden');
+  overlay.onclick = (e)=>{ if(e.target===overlay) overlay.classList.add('hidden'); };
+}
+
+async function onAddSchedule(){
+  const dateEl = $('#schedDate');
+  const titleEl = $('#schedTitle');
+  const date = dateEl.value;
+  const title = titleEl.value.trim();
+  if(!date || !title){ showToast('日付と内容を入力してね'); return; }
+  DATA.schedules.push({date, title});
+  await persist();
+  dateEl.value=''; titleEl.value='';
+  render();
+  showToast('予定を追加しました');
+}
+
+// ---------- settings view ----------
+function renderSettings(){
+  const el = $('#mainView');
+  el.innerHTML = `
+    <section class="settings">
+      <div class="card">
+        <h2>学期</h2>
+        <p class="hint">学期ごとの開始日・終了日を登録すると、出席率の集計に使われます。</p>
+        <div id="termList">${renderTermList()}</div>
+        <div class="form-grid">
+          <input type="text" id="termName" placeholder="学期名（例：2学期）">
+          <span></span>
+        </div>
+        <div class="form-grid">
+          <input type="date" id="termStart">
+          <input type="date" id="termEnd">
+        </div>
+        <button class="btn btn-primary btn-block" id="addTerm">学期を追加</button>
+      </div>
+
+      <div class="card">
+        <h2>休校日</h2>
+        <p class="hint">台風や学校行事などで授業がない日を登録できます。</p>
+        <div id="closureList">${renderClosureList()}</div>
+        <div class="form-grid">
+          <input type="date" id="closureDate">
+          <input type="text" id="closureName" placeholder="理由（任意）">
+        </div>
+        <button class="btn btn-primary btn-block" id="addClosure">休校日を追加</button>
+      </div>
+
+      <div class="card">
+        <h2>祝日</h2>
+        <p class="hint">祝日はあらかじめ登録済み。チェックを外すと通常の日として扱われます。年度が変わったら追加してね。</p>
+        <div id="holidayList">${renderHolidayList()}</div>
+        <div class="form-grid">
+          <input type="date" id="holidayDate">
+          <input type="text" id="holidayName" placeholder="祝日名">
+        </div>
+        <button class="btn btn-primary btn-block" id="addHoliday">祝日を追加</button>
+      </div>
+
+      <div class="card">
+        <h2>データ</h2>
+        <p class="hint">記録を全て消してやり直したいときはこちら。</p>
+        <button class="btn btn-danger btn-block" id="resetAll">すべてのデータを消去</button>
+      </div>
+    </section>
+  `;
+
+  $('#addTerm').onclick = onAddTerm;
+  $('#addClosure').onclick = onAddClosure;
+  $('#addHoliday').onclick = onAddHoliday;
+  $('#resetAll').onclick = onResetAll;
+  bindListActions();
+}
+
+function renderTermList(){
+  if(!DATA.terms.length) return `<p class="empty-note">まだ学期が登録されていません</p>`;
+  return DATA.terms.map((t,i)=>`
+    <div class="list-row">
+      <div class="info"><b>${escapeHtml(t.name||'学期')}</b><span>${t.start} 〜 ${t.end}</span></div>
+      <button class="delTerm" data-idx="${i}">×</button>
+    </div>
+  `).join('');
+}
+function renderClosureList(){
+  if(!DATA.closures.length) return `<p class="empty-note">登録された休校日はありません</p>`;
+  return DATA.closures.slice().sort((a,b)=>a.date.localeCompare(b.date)).map((c)=>{
+    const idx = DATA.closures.indexOf(c);
+    return `<div class="list-row">
+      <div class="info"><b>${c.date}</b><span>${escapeHtml(c.name||'休校')}</span></div>
+      <button class="delClosure" data-idx="${idx}">×</button>
+    </div>`;
+  }).join('');
+}
+function renderHolidayList(){
+  const items = DATA.holidays.slice().sort((a,b)=>a.date.localeCompare(b.date));
+  return items.map((h)=>{
+    const idx = DATA.holidays.indexOf(h);
+    const checked = h.enabled !== false ? 'checked' : '';
+    return `<div class="list-row">
+      <label><input type="checkbox" class="toggleHoliday" data-idx="${idx}" ${checked}></label>
+      <div class="info"><b>${h.date}</b><span>${escapeHtml(h.name)}</span></div>
+      <button class="delHoliday" data-idx="${idx}">×</button>
+    </div>`;
+  }).join('');
+}
+
+function bindListActions(){
+  document.querySelectorAll('.delTerm').forEach(b=> b.onclick = async ()=>{
+    DATA.terms.splice(+b.dataset.idx,1); await persist(); renderSettings();
+  });
+  document.querySelectorAll('.delClosure').forEach(b=> b.onclick = async ()=>{
+    DATA.closures.splice(+b.dataset.idx,1); await persist(); renderSettings();
+  });
+  document.querySelectorAll('.delHoliday').forEach(b=> b.onclick = async ()=>{
+    DATA.holidays.splice(+b.dataset.idx,1); await persist(); renderSettings();
+  });
+  document.querySelectorAll('.toggleHoliday').forEach(b=> b.onchange = async ()=>{
+    DATA.holidays[+b.dataset.idx].enabled = b.checked; await persist();
+  });
+  document.querySelectorAll('.delSched').forEach(b=> b.onclick = async ()=>{
+    DATA.schedules.splice(+b.dataset.idx,1); await persist(); render();
+  });
+}
+
+async function onAddTerm(){
+  const name = $('#termName').value.trim();
+  const start = $('#termStart').value;
+  const end = $('#termEnd').value;
+  if(!start || !end){ showToast('開始日と終了日を入力してね'); return; }
+  if(start > end){ showToast('終了日は開始日より後にしてね'); return; }
+  DATA.terms.push({name, start, end});
+  await persist();
+  renderSettings();
+  showToast('学期を追加しました');
+}
+async function onAddClosure(){
+  const date = $('#closureDate').value;
+  const name = $('#closureName').value.trim();
+  if(!date){ showToast('日付を入力してね'); return; }
+  DATA.closures.push({date, name});
+  await persist();
+  renderSettings();
+  showToast('休校日を追加しました');
+}
+async function onAddHoliday(){
+  const date = $('#holidayDate').value;
+  const name = $('#holidayName').value.trim();
+  if(!date || !name){ showToast('日付と名前を入力してね'); return; }
+  DATA.holidays.push({date, name, enabled:true});
+  await persist();
+  renderSettings();
+  showToast('祝日を追加しました');
+}
+async function onResetAll(){
+  if(!confirm('すべてのデータを消去します。よろしいですか？')) return;
+  DATA = defaultData();
+  await persist();
+  render();
+  showToast('データを消去しました');
+}
+
+function escapeHtml(s){
+  return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+// ---------- init ----------
+async function init(){
+  const t = new Date();
+  viewYear = t.getFullYear();
+  viewMonth = t.getMonth();
+  await loadData();
+  render();
+}
+
+$('#tabMain').addEventListener('click', ()=>{ currentTab='main'; render(); });
+$('#tabSettings').addEventListener('click', ()=>{ currentTab='settings'; render(); });
+
+init();
+</script>
+</body>
+</html>

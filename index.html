@@ -457,9 +457,26 @@ const todayISO = () => {
   return iso(t.getFullYear(), t.getMonth(), t.getDate());
 };
 
+// Use Claude's built-in storage when running inside a Claude artifact;
+// otherwise (e.g. hosted on GitHub Pages) fall back to the browser's own
+// localStorage, so the app saves data either way.
+const hasClaudeStorage = (typeof window.storage !== 'undefined')
+  && typeof window.storage.get === 'function';
+
+async function storageGet(key){
+  if(hasClaudeStorage) return await window.storage.get(key, false);
+  const raw = localStorage.getItem(key);
+  return raw ? {value: raw} : null;
+}
+async function storageSet(key, value){
+  if(hasClaudeStorage) return await window.storage.set(key, value, false);
+  localStorage.setItem(key, value);
+  return {value};
+}
+
 async function loadData(){
   try{
-    const res = await window.storage.get(STORAGE_KEY, false);
+    const res = await storageGet(STORAGE_KEY);
     if(res && res.value){
       const parsed = JSON.parse(res.value);
       DATA = Object.assign(defaultData(), parsed);
@@ -476,7 +493,7 @@ async function loadData(){
 
 async function persist(){
   try{
-    await window.storage.set(STORAGE_KEY, JSON.stringify(DATA), false);
+    await storageSet(STORAGE_KEY, JSON.stringify(DATA));
   }catch(e){
     showToast('保存に失敗しました');
   }
